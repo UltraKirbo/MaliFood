@@ -45,16 +45,23 @@ async function lancerVote(member, interactionOrMessage) {
 
     const voteText = `@everyone 🗳️ Vote pour réinitialiser les rôles de **${member.user.tag}** ! Vous avez ${DUREE_VOTE / 1000}s pour voter !`;
 
-    const replyOptions = {
-        content: voteText,
-        components: [row],
-        allowedMentions: { parse: ['everyone'] },
-        fetchReply: true
-    };
+    let voteMessage;
 
-    const voteMessage = interactionOrMessage.reply
-        ? await interactionOrMessage.reply(replyOptions)
-        : await interactionOrMessage.channel.send(replyOptions);
+    if (interactionOrMessage.isCommand?.()) {
+        await interactionOrMessage.deferReply(); // différer la réponse pour les slash commands
+        voteMessage = await interactionOrMessage.followUp({
+            content: voteText,
+            components: [row],
+            allowedMentions: { parse: ['everyone'] },
+            fetchReply: true
+        });
+    } else {
+        voteMessage = await interactionOrMessage.channel.send({
+            content: voteText,
+            components: [row],
+            allowedMentions: { parse: ['everyone'] }
+        });
+    }
 
     const votes = new Collection();
 
@@ -63,12 +70,18 @@ async function lancerVote(member, interactionOrMessage) {
         time: DUREE_VOTE
     });
 
-    collector.on('collect', i => {
+    collector.on('collect', async i => {
         if (!i.member.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
             return i.reply({ content: "🚫 Tu ne peux pas voter.", ephemeral: true });
         }
+
         votes.set(i.user.id, i.customId);
-        i.reply({ content: `✅ Vote enregistré : ${i.customId === 'vote_yes' ? 'Oui' : 'Non'}`, ephemeral: true });
+
+        // Important : deferUpdate pour éviter "Échec de l'interaction"
+        await i.deferUpdate();
+
+        // Message éphémère pour confirmer le vote
+        i.followUp({ content: `✅ Vote enregistré : ${i.customId === 'vote_yes' ? 'Oui' : 'Non'}`, ephemeral: true });
     });
 
     collector.on('end', async () => {
