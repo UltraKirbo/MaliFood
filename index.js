@@ -12,27 +12,26 @@
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMembers,       // Privileged Intent
         GatewayIntentBits.GuildVoiceStates,
-        GatewayIntentBits.GuildMessages, // nécessaire pour messageCreate
-        GatewayIntentBits.MessageContent // nécessaire pour lire le contenu des messages
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent       // Privileged Intent
     ],
     partials: [Partials.Channel]
 });
 
-const TOKEN = process.env.TOKEN;; // met ton token ici ou utilise process.env.TOKEN
+const TOKEN = process.env.TOKEN; // ✅ sécurisé
 const ROLE_A_GARDER = '789187163975581717';
 const SALON_VOCAL_ID = '830510767681830922';
-const DUREE_VOTE = 60000; // 60 secondes de vote
-const PREFIX = "!"; // préfixe classique
+const DUREE_VOTE = 60000; // 60 secondes
+const PREFIX = "!";
 
 client.once('ready', () => {
     console.log(`✅ Connecté en tant que ${client.user.tag}`);
 });
 
-// Fonction commune pour gérer le vote
+// Fonction commune pour lancer le vote
 async function lancerVote(member, interactionOrMessage) {
-    // Créer les boutons
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('vote_yes')
@@ -49,11 +48,10 @@ async function lancerVote(member, interactionOrMessage) {
     const replyOptions = {
         content: voteText,
         components: [row],
-        allowedMentions: { parse: ['everyone'] }, // permet de ping @everyone
+        allowedMentions: { parse: ['everyone'] },
         fetchReply: true
     };
 
-    // Répond selon type (slash ou message)
     const voteMessage = interactionOrMessage.reply
         ? await interactionOrMessage.reply(replyOptions)
         : await interactionOrMessage.channel.send(replyOptions);
@@ -98,7 +96,7 @@ async function lancerVote(member, interactionOrMessage) {
     });
 }
 
-// Slash command
+// Slash command /Goulag
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -114,7 +112,7 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// Commande classique avec préfixe
+// Commande classique !Goulag
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
     if (!message.content.startsWith(PREFIX)) return;
@@ -122,13 +120,13 @@ client.on('messageCreate', async message => {
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    if (command === "Goulag") {
+    if (command === "goulag") {
         if (!message.member.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
             return message.reply("🚫 Tu n'as pas la permission de gérer les rôles !");
         }
 
         const member = message.mentions.members.first();
-        if (!member) return message.reply("⚠️ Mentionne un utilisateur : `!resetroles @pseudo`");
+        if (!member) return message.reply("⚠️ Mentionne un utilisateur : `!Goulag @pseudo`");
 
         await lancerVote(member, message);
     }
