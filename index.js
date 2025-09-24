@@ -20,7 +20,7 @@ const client = new Client({
     partials: [Partials.Channel]
 });
 
-const TOKEN = 'MTQyMDQ2ODU0MDM2MzkwMzAyNg.GTKoMX.WcTYjioGssqmp4t7N6HuGE3v1MZrvAygSfZtrM'; // met ton token ici ou utilise process.env.TOKEN
+const TOKEN = process.env.TOKEN;; // met ton token ici ou utilise process.env.TOKEN
 const ROLE_A_GARDER = '789187163975581717';
 const SALON_VOCAL_ID = '830510767681830922';
 const DUREE_VOTE = 60000; // 60 secondes de vote
