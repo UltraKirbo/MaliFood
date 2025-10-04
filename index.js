@@ -6,7 +6,8 @@
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
-    Collection
+    Collection,
+    ComponentType
 } = require('discord.js');
 
 const client = new Client({
@@ -48,7 +49,7 @@ async function lancerVote(member, interactionOrMessage) {
     let voteMessage;
 
     if (interactionOrMessage.isCommand?.()) {
-        await interactionOrMessage.deferReply(); // différer la réponse pour les slash commands
+        await interactionOrMessage.deferReply();
         voteMessage = await interactionOrMessage.followUp({
             content: voteText,
             components: [row],
@@ -66,7 +67,7 @@ async function lancerVote(member, interactionOrMessage) {
     const votes = new Collection();
 
     const collector = voteMessage.createMessageComponentCollector({
-        componentType: 'BUTTON',
+        componentType: ComponentType.Button,
         time: DUREE_VOTE
     });
 
@@ -77,11 +78,11 @@ async function lancerVote(member, interactionOrMessage) {
 
         votes.set(i.user.id, i.customId);
 
-        // Important : deferUpdate pour éviter "Échec de l'interaction"
-        await i.deferUpdate();
-
-        // Message éphémère pour confirmer le vote
-        i.followUp({ content: `✅ Vote enregistré : ${i.customId === 'vote_yes' ? 'Oui' : 'Non'}`, ephemeral: true });
+        // ✅ Utilise i.reply directement
+        await i.reply({
+            content: `✅ Vote enregistré : ${i.customId === 'vote_yes' ? 'Oui' : 'Non'}`,
+            ephemeral: true
+        });
     });
 
     collector.on('end', async () => {
@@ -98,13 +99,13 @@ async function lancerVote(member, interactionOrMessage) {
                 if (member.voice?.channel) {
                     await member.voice.setChannel(SALON_VOCAL_ID);
                 }
-                voteMessage.edit({ content: `✅ Vote terminé : action validée (${oui}✅ vs ${non}❌)`, components: [] });
+                await voteMessage.edit({ content: `✅ Vote terminé : action validée (${oui}✅ vs ${non}❌)`, components: [] });
             } catch (err) {
                 console.error(err);
-                voteMessage.edit({ content: "❌ Impossible d'appliquer les changements.", components: [] });
+                await voteMessage.edit({ content: "❌ Impossible d'appliquer les changements.", components: [] });
             }
         } else {
-            voteMessage.edit({ content: `❌ Vote terminé : action annulée (${oui}✅ vs ${non}❌)`, components: [] });
+            await voteMessage.edit({ content: `❌ Vote terminé : action annulée (${oui}✅ vs ${non}❌)`, components: [] });
         }
     });
 }
