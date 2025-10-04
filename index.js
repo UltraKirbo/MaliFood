@@ -13,18 +13,18 @@
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,       // Privileged Intent
+        GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent       // Privileged Intent
+        GatewayIntentBits.MessageContent
     ],
     partials: [Partials.Channel]
 });
 
-const TOKEN = process.env.TOKEN; // ✅ sécurisé
-const ROLE_A_GARDER = '789187163975581717';
-const SALON_VOCAL_ID = '830510767681830922';
-const DUREE_VOTE = 60000; // 60 secondes
+const TOKEN = process.env.TOKEN;
+const ROLE_A_GARDER = '1416179767899848714';
+const SALON_VOCAL_ID = '1416180566193213561';
+const DUREE_VOTE_DEFAUT = 30; // durée par défaut en secondes
 const PREFIX = "!";
 
 client.once('ready', () => {
@@ -32,7 +32,7 @@ client.once('ready', () => {
 });
 
 // Fonction commune pour lancer le vote
-async function lancerVote(member, interactionOrMessage) {
+async function lancerVote(member, interactionOrMessage, dureeVote) {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('vote_yes')
@@ -44,41 +44,25 @@ async function lancerVote(member, interactionOrMessage) {
             .setStyle(ButtonStyle.Danger)
     );
 
-    const voteText = `@everyone 🗳️ Vote pour réinitialiser les rôles de **${member.user.tag}** ! Vous avez ${DUREE_VOTE / 1000}s pour voter !`;
-
-    let voteMessage;
-
-    if (interactionOrMessage.isCommand?.()) {
-        await interactionOrMessage.deferReply();
-        voteMessage = await interactionOrMessage.followUp({
-            content: voteText,
-            components: [row],
-            allowedMentions: { parse: ['everyone'] },
-            fetchReply: true
-        });
-    } else {
-        voteMessage = await interactionOrMessage.channel.send({
-            content: voteText,
-            components: [row],
-            allowedMentions: { parse: ['everyone'] }
-        });
-    }
+    const voteMessage = await interactionOrMessage.channel.send({
+        content: `@everyone 🗳️ Vote pour réinitialiser les rôles de **${member.user.tag}** !\n⏱️ Durée : **${Math.round(dureeVote / 60000)} minute(s)**`,
+        components: [row]
+    });
 
     const votes = new Collection();
 
     const collector = voteMessage.createMessageComponentCollector({
         componentType: ComponentType.Button,
-        time: DUREE_VOTE
+        time: dureeVote
     });
 
     collector.on('collect', async i => {
-        if (!i.member.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
-            return i.reply({ content: "🚫 Tu ne peux pas voter.", ephemeral: true });
+        // Tout le monde peut voter mais une seule fois
+        if (votes.has(i.user.id)) {
+            return i.reply({ content: "⚠️ Tu as déjà voté !", ephemeral: true });
         }
 
         votes.set(i.user.id, i.customId);
-
-        // ✅ Utilise i.reply directement
         await i.reply({
             content: `✅ Vote enregistré : ${i.customId === 'vote_yes' ? 'Oui' : 'Non'}`,
             ephemeral: true
@@ -90,22 +74,28 @@ async function lancerVote(member, interactionOrMessage) {
         const non = votes.filter(v => v === 'vote_no').size;
 
         if (oui > non) {
-            const rolesToRemove = member.roles.cache.filter(
-                role => role.id !== ROLE_A_GARDER && role.id !== member.guild.id
-            );
             try {
+                const rolesToRemove = member.roles.cache.filter(
+                    role => role.id !== ROLE_A_GARDER && role.id !== member.guild.id
+                );
                 await member.roles.remove(rolesToRemove);
                 await member.roles.add(ROLE_A_GARDER);
                 if (member.voice?.channel) {
                     await member.voice.setChannel(SALON_VOCAL_ID);
                 }
-                await voteMessage.edit({ content: `✅ Vote terminé : action validée (${oui}✅ vs ${non}❌)`, components: [] });
+                await voteMessage.edit({
+                    content: `✅ Vote terminé : action validée (${oui}✅ vs ${non}❌)`,
+                    components: []
+                });
             } catch (err) {
                 console.error(err);
                 await voteMessage.edit({ content: "❌ Impossible d'appliquer les changements.", components: [] });
             }
         } else {
-            await voteMessage.edit({ content: `❌ Vote terminé : action annulée (${oui}✅ vs ${non}❌)`, components: [] });
+            await voteMessage.edit({
+                content: `❌ Vote terminé : action annulée (${oui}✅ vs ${non}❌)`,
+                components: []
+            });
         }
     });
 }
@@ -122,7 +112,8 @@ client.on('interactionCreate', async interaction => {
         const member = interaction.options.getMember('utilisateur');
         if (!member) return interaction.reply({ content: "⚠️ Utilisateur introuvable.", ephemeral: true });
 
-        await lancerVote(member, interaction);
+        // Durée par défaut pour slash command (peut être amélioré pour option)
+        await lancerVote(member, interaction, DUREE_VOTE_DEFAUT * 1000);
     }
 });
 
@@ -140,9 +131,15 @@ client.on('messageCreate', async message => {
         }
 
         const member = message.mentions.members.first();
-        if (!member) return message.reply("⚠️ Mentionne un utilisateur : `!Goulag @pseudo`");
+        if (!member) return message.reply("⚠️ Mentionne un utilisateur : `!Goulag @pseudo [minutes]`");
 
-        await lancerVote(member, message);
+        // Récupérer la durée en minutes après la mention
+        const dureeMinutes = parseFloat(args[1]);
+        const dureeVote = !isNaN(dureeMinutes) && dureeMinutes > 0
+            ? dureeMinutes * 60 * 1000
+            : DUREE_VOTE_DEFAUT * 1000;
+
+        await lancerVote(member, message, dureeVote);
     }
 });
 
